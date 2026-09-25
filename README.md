@@ -4,6 +4,8 @@ Demo didática que coloca o **Jev** (modelo *System 1* da [TypeSafe AI](https://
 
 Tudo roda via [OpenRouter](https://openrouter.ai) com **uma única API key**.
 
+![Tela inicial: cenário, perguntas tipadas, mensagem do cliente e comparação](demo-00.png)
+
 ---
 
 ## Por que isso existe?
@@ -38,6 +40,10 @@ Há 5 mensagens de exemplo (clara, ambígua, spam, raivosa, comercial), e você 
 - **Faixa comparativa**: "Nx mais rápido", "Nx mais barato" e se os dois concordaram
 - **Histórico** das execuções da sessão
 - **Menu** para trocar o LLM de comparação (GPT, Claude, Gemini, Llama…)
+
+![Resultado lado a lado: Jev com probabilidades vs LLM](demo-01.png)
+
+*Exemplo real com a mensagem "raivosa": o Jev respondeu em 346 ms (4,4× mais rápido) e custou 2,8× menos que o `gpt-4o-mini`. Os dois divergiram na categoria. O Jev escolheu `reembolso`, mas as barras mostram que ele considerou `tecnico` (22%), e a confiança de 43% na urgência sinaliza um caso limítrofe. O LLM só entrega a resposta escrita, sem essa informação.*
 
 ## Como rodar
 
