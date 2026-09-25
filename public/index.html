@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Jev vs LLM — Triagem</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: { sans: ['Inter', 'system-ui', 'sans-serif'], mono: ['JetBrains Mono', 'ui-monospace', 'monospace'] },
+          colors: { jev: { 400: '#34d399', 500: '#10b981', 600: '#059669' }, llm: { 400: '#a78bfa', 500: '#8b5cf6', 600: '#7c3aed' } },
+        },
+      },
+    };
+  </script>
+  <style>
+    body { background: radial-gradient(1200px 600px at 10% -10%, #0f2e2a 0%, transparent 60%), radial-gradient(900px 500px at 110% 0%, #221a3d 0%, transparent 55%), #0b0d12; }
+    .glass { background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); backdrop-filter: blur(6px); }
+    .bar { transition: width .6s cubic-bezier(.2,.8,.2,1); }
+  </style>
+</head>
+<body class="min-h-screen text-slate-200 font-sans antialiased">
+  <main class="max-w-6xl mx-auto px-4 sm:px-6 py-10 space-y-8">
+
+    <!-- Header -->
+    <header class="space-y-3">
+      <div class="inline-flex items-center gap-2 text-xs font-medium px-3 py-1 rounded-full glass text-slate-400">
+        <span class="w-2 h-2 rounded-full bg-jev-400 animate-pulse"></span> demo · via OpenRouter
+      </div>
+      <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">
+        <span class="text-jev-400">Jev</span> <span class="text-slate-500 font-medium">vs</span> <span class="text-llm-400">LLM</span>
+      </h1>
+      <p class="text-slate-400 max-w-3xl leading-relaxed">
+        <b class="text-slate-200">Jev</b> é um modelo <i>System 1</i>: em vez de gerar texto token a token, ele devolve
+        <b class="text-slate-200">decisões tipadas com probabilidades</b>. Um <b class="text-slate-200">LLM</b> precisa
+        “escrever” a resposta, mesmo quando só queremos uma escolha. Mesma tarefa, dois modelos — compare.
+      </p>
+    </header>
+
+    <!-- Scenario -->
+    <section class="glass rounded-2xl p-6 grid lg:grid-cols-5 gap-6">
+      <div class="lg:col-span-2 space-y-4">
+        <h2 class="text-lg font-semibold" id="sc-title">Cenário</h2>
+        <p class="text-sm text-slate-400 leading-relaxed" id="sc-summary"></p>
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Perguntas tipadas (iguais p/ os dois)</div>
+          <ul id="sc-questions" class="space-y-2 text-sm"></ul>
+        </div>
+      </div>
+
+      <div class="lg:col-span-3 space-y-4">
+        <div>
+          <div class="text-xs uppercase tracking-wider text-slate-500 mb-2">Mensagem do cliente</div>
+          <div id="examples" class="flex flex-wrap gap-2 mb-3"></div>
+          <textarea id="message" rows="4" class="w-full rounded-xl bg-black/30 border border-white/10 focus:border-jev-500 focus:ring-2 focus:ring-jev-500/30 outline-none p-3 text-sm resize-y" placeholder="Digite ou escolha um exemplo..."></textarea>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-3 sm:items-end">
+          <label class="flex-1">
+            <span class="text-xs uppercase tracking-wider text-slate-500">Modelo LLM para comparar</span>
+            <select id="llmModel" class="mt-1 w-full rounded-xl bg-black/30 border border-white/10 p-2.5 text-sm outline-none focus:border-llm-500"></select>
+          </label>
+          <button id="run" class="inline-flex items-center justify-center gap-2 rounded-xl px-6 py-2.5 font-semibold text-black bg-gradient-to-r from-jev-400 to-llm-400 hover:brightness-110 disabled:opacity-50 disabled:cursor-wait transition">
+            <svg id="spinner" class="hidden w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-opacity=".25" stroke-width="4"/><path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="4"/></svg>
+            <span id="run-label">Executar</span>
+          </button>
+        </div>
+        <p id="warn" class="hidden text-sm text-amber-300"></p>
+      </div>
+    </section>
+
+    <!-- Comparison banner -->
+    <section id="banner" class="hidden glass rounded-2xl p-5 grid sm:grid-cols-3 gap-4 text-center"></section>
+
+    <!-- Results -->
+    <section id="results" class="hidden grid md:grid-cols-2 gap-6">
+      <div id="card-jev"></div>
+      <div id="card-llm"></div>
+    </section>
+
+    <!-- History -->
+    <section id="history-wrap" class="hidden glass rounded-2xl p-6">
+      <h2 class="text-lg font-semibold mb-4">Histórico da sessão</h2>
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead class="text-slate-500 text-xs uppercase tracking-wider">
+            <tr class="text-left">
+              <th class="py-2 pr-4">Mensagem</th><th class="pr-4">LLM</th>
+              <th class="pr-4 text-right">Tempo Jev</th><th class="pr-4 text-right">Tempo LLM</th>
+              <th class="pr-4 text-right">Custo Jev</th><th class="pr-4 text-right">Custo LLM</th><th>Concordam?</th>
+            </tr>
+          </thead>
+          <tbody id="history" class="divide-y divide-white/5"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer class="text-xs text-slate-600 text-center pt-4">Tempos medidos no backend (inclui rede). Custos reais retornados pelo OpenRouter em <code class="font-mono">usage.cost</code>.</footer>
+  </main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const fmtMs = (ms) => (ms == null ? '—' : ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(2)} s`);
+const fmtUsd = (v) => (v == null ? '—' : `$${Number(v).toFixed(v < 0.001 ? 7 : 5)}`);
+const pct = (v) => `${Math.round((v ?? 0) * 100)}%`;
+const typeBadge = { choice: 'bg-sky-500/15 text-sky-300', score: 'bg-amber-500/15 text-amber-300', noul: 'bg-rose-500/15 text-rose-300' };
+
+let config;
+
+async function init() {
+  config = await fetch('/api/config').then((r) => r.json());
+  $('sc-title').textContent = config.scenario.title;
+  $('sc-summary').textContent = config.scenario.summary;
+
+  $('sc-questions').innerHTML = Object.entries(config.questions).map(([id, q]) => {
+    const opts = Array.isArray(q.criteria) ? q.criteria : q.type === 'noul' ? ['true', 'false'] : Object.keys(q.criteria);
+    return `<li class="rounded-lg bg-black/20 p-3">
+      <div class="flex items-center gap-2"><code class="font-mono text-slate-200">${esc(id)}</code>
+        <span class="text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded ${typeBadge[q.type]}">${q.type}</span></div>
+      <div class="text-slate-400 mt-1">${esc(q.instructions)}</div>
+      <div class="text-xs text-slate-500 mt-1 font-mono">${opts.map(esc).join(' · ')}</div></li>`;
+  }).join('');
+
+  $('examples').innerHTML = config.examples.map((e, i) =>
+    `<button data-i="${i}" class="ex text-xs px-3 py-1.5 rounded-full border border-white/10 hover:border-jev-500 hover:text-jev-400 transition">${esc(e.label)}</button>`).join('');
+  document.querySelectorAll('.ex').forEach((b) => b.onclick = () => { $('message').value = config.examples[b.dataset.i].text; });
+  $('message').value = config.examples[0].text;
+
+  $('llmModel').innerHTML = config.llmModels.map((m) => `<option>${esc(m)}</option>`).join('');
+
+  if (!config.hasKey) { $('warn').textContent = '⚠ OPENROUTER_API_KEY não configurada no .env do backend.'; $('warn').classList.remove('hidden'); }
+}
+
+function probBars(probs, color, winner) {
+  if (!probs) return '';
+  return Object.entries(probs).sort((a, b) => b[1] - a[1]).map(([k, v]) => `
+    <div class="flex items-center gap-2 text-xs">
+      <span class="w-28 truncate ${k === winner ? 'text-slate-100 font-medium' : 'text-slate-500'}">${esc(k)}</span>
+      <div class="flex-1 h-1.5 rounded bg-white/5 overflow-hidden"><div class="bar h-full ${color}" style="width:${pct(v)}"></div></div>
+      <span class="w-10 text-right font-mono text-slate-400">${pct(v)}</span>
+    </div>`).join('');
+}
+
+function field(label, value, extra = '') {
+  return `<div class="rounded-xl bg-black/25 p-3 space-y-2">
+    <div class="flex items-baseline justify-between gap-2">
+      <span class="text-xs uppercase tracking-wider text-slate-500">${label}</span>
+      <span class="font-semibold text-slate-100">${esc(value)}</span>
+    </div>${extra}</div>`;
+}
+
+function card(kind, r) {
+  const isJev = kind === 'jev';
+  const accent = isJev ? 'text-jev-400' : 'text-llm-400';
+  const ring = isJev ? 'ring-jev-500/30' : 'ring-llm-500/30';
+  const head = `<div class="flex items-center justify-between">
+      <div><div class="text-xs uppercase tracking-wider text-slate-500">${isJev ? 'System 1' : 'LLM'}</div>
+      <div class="text-xl font-bold ${accent}">${isJev ? 'Jev' : 'LLM'}</div>
+      <div class="text-xs font-mono text-slate-500">${esc(r.model || '')}</div></div>
+      ${r.ok ? (r.validOutput
+        ? '<span class="text-xs px-2 py-1 rounded-full bg-emerald-500/15 text-emerald-300">saída válida</span>'
+        : '<span class="text-xs px-2 py-1 rounded-full bg-red-500/15 text-red-300">saída inválida</span>') : ''}
+    </div>`;
+
+  if (!r.ok) {
+    return `<div class="glass rounded-2xl p-6 ring-1 ${ring} space-y-4">${head}
+      <div class="rounded-xl bg-red-500/10 border border-red-500/20 p-4 text-sm text-red-300">${esc(r.error)}</div>
+      ${rawBlock(r.raw)}</div>`;
+  }
+
+  const res = r.result || {};
+  const d = r.details;
+  const barColor = isJev ? 'bg-jev-400' : 'bg-llm-400';
+
+  const metrics = `<div class="grid grid-cols-3 gap-3">
+    ${metric('Tempo', fmtMs(r.latencyMs))}${metric('Custo', fmtUsd(r.costUsd))}
+    ${metric('Tokens', r.usage ? `${r.usage.input_tokens ?? '?'} / ${r.usage.output_tokens ?? '?'}` : '—', 'in / out')}</div>`;
+
+  const noProb = '<div class="text-xs text-slate-500 italic">sem probabilidade calibrada — só a resposta escrita</div>';
+  const conf = (c) => c != null ? `<div class="text-xs text-slate-500">confiança <span class="font-mono text-slate-300">${pct(c)}</span></div>` : '';
+
+  const fields = res.texto_bruto !== undefined
+    ? `<div class="rounded-xl bg-black/25 p-3 text-sm text-slate-300 whitespace-pre-wrap">${esc(res.texto_bruto)}</div>`
+    : [
+        field('categoria', res.categoria, d ? conf(d.categoria.confidence) + probBars(d.categoria.probabilities, barColor, res.categoria) : noProb),
+        field('urgência', res.urgencia, d ? conf(d.urgencia.confidence) + probBars(d.urgencia.probabilities, barColor, res.urgencia) : noProb),
+        field('escalar p/ humano', res.escalar_humano ? 'sim' : 'não', d ? probBars({ sim: d.escalar_humano.noul, não: 1 - d.escalar_humano.noul }, barColor, res.escalar_humano ? 'sim' : 'não') : noProb),
+      ].join('');
+
+  return `<div class="glass rounded-2xl p-6 ring-1 ${ring} space-y-4">${head}${metrics}
+    <div class="space-y-3">${fields}</div>${rawBlock(r.raw)}</div>`;
+}
+
+const metric = (label, value, sub = '') => `<div class="rounded-xl bg-black/25 p-3">
+  <div class="text-[10px] uppercase tracking-wider text-slate-500">${label}</div>
+  <div class="font-mono text-lg text-slate-100">${value}</div>${sub ? `<div class="text-[10px] text-slate-600">${sub}</div>` : ''}</div>`;
+
+const rawBlock = (raw) => raw ? `<details class="text-xs"><summary class="cursor-pointer text-slate-500 hover:text-slate-300">JSON bruto</summary>
+  <pre class="mt-2 max-h-72 overflow-auto rounded-lg bg-black/40 p-3 font-mono text-slate-400">${esc(JSON.stringify(raw, null, 2))}</pre></details>` : '';
+
+function agree(j, l) {
+  if (!j.ok || !l.ok || !l.validOutput) return null;
+  const a = j.result, b = l.result;
+  return a.categoria === b.categoria && a.urgencia === b.urgencia && a.escalar_humano === b.escalar_humano;
+}
+
+function ratio(a, b) {
+  if (!a || !b) return null;
+  return b / a;
+}
+
+function banner(j, l) {
+  const t = j.ok && l.ok ? ratio(j.latencyMs, l.latencyMs) : null;
+  const c = j.ok && l.ok ? ratio(j.costUsd, l.costUsd) : null;
+  const ag = agree(j, l);
+  const box = (title, big, sub) => `<div><div class="text-xs uppercase tracking-wider text-slate-500">${title}</div>
+    <div class="text-2xl font-bold mt-1">${big}</div><div class="text-xs text-slate-500 mt-1">${sub}</div></div>`;
+  const fx = (x, word) => x == null ? '<span class="text-slate-500">—</span>'
+    : x >= 1 ? `<span class="text-jev-400">${x.toFixed(1)}×</span> <span class="text-base font-medium text-slate-400">${word}</span>`
+    : `<span class="text-llm-400">${(1 / x).toFixed(1)}×</span> <span class="text-base font-medium text-slate-400">LLM ${word}</span>`;
+  $('banner').innerHTML =
+    box('Velocidade', fx(t, 'mais rápido'), `${fmtMs(j.latencyMs)} vs ${fmtMs(l.latencyMs)}`) +
+    box('Custo', fx(c, 'mais barato'), `${fmtUsd(j.costUsd)} vs ${fmtUsd(l.costUsd)}`) +
+    box('Decisão', ag == null ? '<span class="text-slate-500">—</span>' : ag ? '<span class="text-emerald-400">Concordam</span>' : '<span class="text-amber-400">Divergem</span>',
+        ag === false ? 'compare os campos abaixo' : 'categoria · urgência · escalar');
+  $('banner').classList.remove('hidden');
+}
+
+function addHistory(msg, model, j, l) {
+  const ag = agree(j, l);
+  const row = document.createElement('tr');
+  row.innerHTML = `<td class="py-2 pr-4 max-w-xs truncate text-slate-300" title="${esc(msg)}">${esc(msg)}</td>
+    <td class="pr-4 font-mono text-xs text-slate-500">${esc(model)}</td>
+    <td class="pr-4 text-right font-mono text-jev-400">${fmtMs(j.latencyMs)}</td>
+    <td class="pr-4 text-right font-mono text-llm-400">${fmtMs(l.latencyMs)}</td>
+    <td class="pr-4 text-right font-mono text-jev-400">${fmtUsd(j.costUsd)}</td>
+    <td class="pr-4 text-right font-mono text-llm-400">${fmtUsd(l.costUsd)}</td>
+    <td>${ag == null ? '—' : ag ? '✅' : '⚠️'}</td>`;
+  $('history').prepend(row);
+  $('history-wrap').classList.remove('hidden');
+}
+
+$('run').onclick = async () => {
+  const message = $('message').value.trim();
+  const llmModel = $('llmModel').value;
+  if (!message) return;
+  $('run').disabled = true; $('spinner').classList.remove('hidden'); $('run-label').textContent = 'Executando...';
+  $('warn').classList.add('hidden');
+  try {
+    const r = await fetch('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ message, llmModel }) });
+    const data = await r.json();
+    if (!r.ok) throw new Error(data.error || r.statusText);
+    $('card-jev').innerHTML = card('jev', data.jev);
+    $('card-llm').innerHTML = card('llm', data.llm);
+    $('results').classList.remove('hidden');
+    banner(data.jev, data.llm);
+    addHistory(message, llmModel, data.jev, data.llm);
+  } catch (e) {
+    $('warn').textContent = `Erro: ${e.message}`; $('warn').classList.remove('hidden');
+  } finally {
+    $('run').disabled = false; $('spinner').classList.add('hidden'); $('run-label').textContent = 'Executar';
+  }
+};
+
+init();
+</script>
+</body>
+</html>
